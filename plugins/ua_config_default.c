@@ -183,6 +183,45 @@ createSecurityPolicyBasic256Sha256Endpoint(UA_ServerConfig *const conf,
     UA_ApplicationDescription_copy(&conf->applicationDescription,
                                    &endpoint->endpointDescription.server);
 
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+createSecurityPolicyBasic256Sha256Endpoint(UA_ServerConfig *const conf,
+                                           UA_Endpoint *endpoint,
+                                           UA_MessageSecurityMode securityMode,
+                                           const UA_ByteString localCertificate,
+                                           const UA_ByteString localPrivateKey) {
+    UA_EndpointDescription_init(&endpoint->endpointDescription);
+
+    UA_StatusCode retval =
+        UA_SecurityPolicy_Basic256Sha256(&endpoint->securityPolicy, &conf->certificateVerification, localCertificate,
+                                         localPrivateKey, conf->logger);
+    if(retval != UA_STATUSCODE_GOOD) {
+        endpoint->securityPolicy.deleteMembers(&endpoint->securityPolicy);
+        return retval;
+    }
+
+    endpoint->endpointDescription.securityMode = securityMode;
+    endpoint->endpointDescription.securityPolicyUri =
+        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    endpoint->endpointDescription.transportProfileUri =
+        UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
+
+    /* Enable all login mechanisms from the access control plugin  */
+    retval = UA_Array_copy(conf->accessControl.userTokenPolicies,
+                           conf->accessControl.userTokenPoliciesSize,
+                           (void **)&endpoint->endpointDescription.userIdentityTokens,
+                           &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    endpoint->endpointDescription.userIdentityTokensSize =
+        conf->accessControl.userTokenPoliciesSize;
+
+    UA_String_copy(&localCertificate, &endpoint->endpointDescription.serverCertificate);
+    UA_ApplicationDescription_copy(&conf->applicationDescription,
+                                   &endpoint->endpointDescription.server);
+
     UA_String_copy(&localCertificate, &endpoint->endpointDescription.serverCertificate);
 
     UA_ApplicationDescription_copy(&conf->applicationDescription,
